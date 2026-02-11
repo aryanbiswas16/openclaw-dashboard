@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Activity,
@@ -9,86 +9,51 @@ import {
   Clock,
   Settings,
   Zap,
-  Server,
   Calendar,
   Mail,
   Github,
   Globe,
   Terminal,
-  Cpu,
   Wifi,
   ChevronRight,
   Plus,
-  MoreHorizontal,
-  Play,
   Pause,
+  Play,
   Square,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle2,
+  X,
 } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-
-// Types
-interface Session {
-  id: string;
-  name: string;
-  status: "active" | "idle" | "paused";
-  lastActive: string;
-  messages: number;
-}
-
-interface Task {
-  id: string;
-  name: string;
-  status: "running" | "queued" | "completed" | "failed";
-  progress: number;
-  type: string;
-}
-
-interface Channel {
-  id: string;
-  name: string;
-  type: "discord" | "telegram" | "whatsapp" | "email";
-  unread: number;
-  lastMessage: string;
-}
-
-// Mock Data
-const mockSessions: Session[] = [
-  { id: "1", name: "Main Agent", status: "active", lastActive: "2m ago", messages: 42 },
-  { id: "2", name: "Research Assistant", status: "idle", lastActive: "15m ago", messages: 128 },
-  { id: "3", name: "Code Reviewer", status: "paused", lastActive: "1h ago", messages: 15 },
-];
-
-const mockTasks: Task[] = [
-  { id: "1", name: "Web Research: Professors", status: "running", progress: 75, type: "research" },
-  { id: "2", name: "Email: Draft Cold Outreach", status: "queued", progress: 0, type: "email" },
-  { id: "3", name: "GitHub: Commit Dashboard", status: "completed", progress: 100, type: "code" },
-  { id: "4", name: "Calendar: Schedule Meeting", status: "running", progress: 30, type: "calendar" },
-];
-
-const mockChannels: Channel[] = [
-  { id: "1", name: "Discord #general", type: "discord", unread: 3, lastMessage: "2m ago" },
-  { id: "2", name: "Telegram Personal", type: "telegram", unread: 0, lastMessage: "1h ago" },
-  { id: "3", name: "WhatsApp Work", type: "whatsapp", unread: 5, lastMessage: "5m ago" },
-  { id: "4", name: "Gmail", type: "email", unread: 12, lastMessage: "10m ago" },
-];
-
-const mockMetrics = [
-  { time: "00:00", requests: 12, latency: 150 },
-  { time: "04:00", requests: 8, latency: 120 },
-  { time: "08:00", requests: 45, latency: 180 },
-  { time: "12:00", requests: 78, latency: 200 },
-  { time: "16:00", requests: 65, latency: 175 },
-  { time: "20:00", requests: 35, latency: 140 },
-  { time: "23:59", requests: 20, latency: 130 },
-];
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
+import { 
+  useSessions, 
+  useTasks, 
+  useSystemStatus, 
+  useChannels, 
+  useCronJobs,
+  useDuration 
+} from "@/lib/hooks";
+import { Session, Task, Channel } from "@/lib/types";
 
 // Components
-function GlassCard({ children, className = "", hover = true }: { children: React.ReactNode; className?: string; hover?: boolean }) {
+function GlassCard({ 
+  children, 
+  className = "", 
+  hover = true,
+  onClick
+}: { 
+  children: React.ReactNode; 
+  className?: string; 
+  hover?: boolean;
+  onClick?: () => void;
+}) {
   return (
     <motion.div
-      whileHover={hover ? { scale: 1.02, y: -2 } : {}}
+      whileHover={hover ? { scale: 1.01, y: -2 } : {}}
       transition={{ duration: 0.2 }}
-      className={`glass rounded-2xl p-6 ${className}`}
+      onClick={onClick}
+      className={`glass rounded-2xl p-6 ${onClick ? 'cursor-pointer' : ''} ${className}`}
     >
       {children}
     </motion.div>
@@ -104,6 +69,8 @@ function StatusBadge({ status }: { status: string }) {
     queued: "bg-purple-500/20 text-purple-400 border-purple-500/30",
     completed: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
     failed: "bg-rose-500/20 text-rose-400 border-rose-500/30",
+    pending: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+    cancelled: "bg-gray-500/20 text-gray-400 border-gray-500/30",
   };
   
   return (
@@ -127,23 +94,65 @@ function ProgressBar({ progress }: { progress: number }) {
 }
 
 function ChannelIcon({ type }: { type: string }) {
-  const icons: Record<string, React.ReactNode> = {
-    discord: <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400">D</div>,
-    telegram: <div className="w-8 h-8 rounded-lg bg-sky-500/20 flex items-center justify-center text-sky-400">T</div>,
-    whatsapp: <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400">W</div>,
-    email: <div className="w-8 h-8 rounded-lg bg-rose-500/20 flex items-center justify-center text-rose-400">@</div>,
+  const colors: Record<string, string> = {
+    discord: "bg-indigo-500/20 text-indigo-400",
+    telegram: "bg-sky-500/20 text-sky-400",
+    whatsapp: "bg-emerald-500/20 text-emerald-400",
+    email: "bg-rose-500/20 text-rose-400",
+    slack: "bg-purple-500/20 text-purple-400",
+    signal: "bg-blue-500/20 text-blue-400",
+    imessage: "bg-green-500/20 text-green-400",
   };
-  return icons[type] || null;
+  
+  const labels: Record<string, string> = {
+    discord: "D",
+    telegram: "T",
+    whatsapp: "W",
+    email: "@",
+    slack: "S",
+    signal: "S",
+    imessage: "i",
+  };
+  
+  return (
+    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${colors[type] || colors.discord}`}>
+      {labels[type] || "?"}
+    </div>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="flex items-center justify-center py-8">
+      <RefreshCw className="w-6 h-6 text-white/50 animate-spin" />
+    </div>
+  );
 }
 
 export default function Dashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeTab, setActiveTab] = useState("overview");
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
 
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  // Data hooks
+  const { sessions, loading: sessionsLoading } = useSessions();
+  const { tasks, loading: tasksLoading, cancelTask } = useTasks();
+  const { status, loading: statusLoading } = useSystemStatus();
+  const { channels, loading: channelsLoading } = useChannels();
+  const formatDuration = useDuration();
+
+  // Update clock
+  setInterval(() => setCurrentTime(new Date()), 1000);
+
+  const metrics = [
+    { time: "00:00", requests: 12, latency: 150 },
+    { time: "04:00", requests: 8, latency: 120 },
+    { time: "08:00", requests: 45, latency: 180 },
+    { time: "12:00", requests: 78, latency: 200 },
+    { time: "16:00", requests: 65, latency: 175 },
+    { time: "20:00", requests: 35, latency: 140 },
+    { time: "23:59", requests: 20, latency: 130 },
+  ];
 
   return (
     <div className="min-h-screen p-6">
@@ -195,7 +204,7 @@ export default function Dashboard() {
         </div>
       </nav>
 
-      {/* Main Dashboard Grid */}
+      {/* Overview Tab */}
       {activeTab === "overview" && (
         <div className="grid grid-cols-12 gap-6">
           {/* System Status */}
@@ -206,26 +215,47 @@ export default function Dashboard() {
                   <Activity className="w-4 h-4 text-emerald-400" />
                   System Status
                 </h3>
-                <StatusBadge status="active" />
+                {statusLoading ? null : (
+                  <StatusBadge status={status?.gateway.status === "online" ? "active" : "failed"} />
+                )}
               </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50 text-sm">Gateway</span>
-                  <span className="text-emerald-400 text-sm font-medium">Online</span>
+              
+              {statusLoading ? (
+                <LoadingState />
+              ) : status ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/50 text-sm">Gateway</span>
+                    <span className="text-emerald-400 text-sm font-medium capitalize">
+                      {status.gateway.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/50 text-sm">API Latency</span>
+                    <span className="text-white text-sm font-medium">
+                      {status.metrics.averageLatency}ms
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/50 text-sm">Uptime</span>
+                    <span className="text-white text-sm font-medium">
+                      {formatDuration(status.gateway.uptime)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/50 text-sm">Version</span>
+                    <span className="text-white text-sm font-medium">{status.gateway.version}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/50 text-sm">Active Sessions</span>
+                    <span className="text-white text-sm font-medium">{status.metrics.activeSessions}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/50 text-sm">Queued Tasks</span>
+                    <span className="text-white text-sm font-medium">{status.metrics.queuedTasks}</span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50 text-sm">API Latency</span>
-                  <span className="text-white text-sm font-medium">145ms</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50 text-sm">Uptime</span>
-                  <span className="text-white text-sm font-medium">3d 12h 45m</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50 text-sm">Version</span>
-                  <span className="text-white text-sm font-medium">2026.2.3</span>
-                </div>
-              </div>
+              ) : null}
             </GlassCard>
           </div>
 
@@ -237,30 +267,35 @@ export default function Dashboard() {
                   <Bot className="w-4 h-4 text-blue-400" />
                   Active Sessions
                 </h3>
-                <span className="text-white/50 text-sm">{mockSessions.length} sessions</span>
+                <span className="text-white/50 text-sm">{sessions.length} sessions</span>
               </div>
-              <div className="space-y-3">
-                {mockSessions.map((session) => (
-                  <div
-                    key={session.id}
-                    className="glass-subtle rounded-xl p-4 flex items-center justify-between hover:bg-white/5 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                        <Bot className="w-5 h-5 text-blue-400" />
+              
+              {sessionsLoading ? (
+                <LoadingState />
+              ) : (
+                <div className="space-y-3">
+                  {sessions.map((session) => (
+                    <div
+                      key={session.id}
+                      onClick={() => setSelectedSession(session)}
+                      className="glass-subtle rounded-xl p-4 flex items-center justify-between hover:bg-white/5 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                          <Bot className="w-5 h-5 text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-white">{session.label}</p>
+                          <p className="text-white/50 text-sm">{session.messageCount} messages</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-white">{session.name}</p>
-                        <p className="text-white/50 text-sm">{session.messages} messages</p>
+                      <div className="flex items-center gap-3">
+                        <StatusBadge status={session.status} />
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <StatusBadge status={session.status} />
-                      <span className="text-white/30 text-sm">{session.lastActive}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </GlassCard>
           </div>
 
@@ -300,27 +335,45 @@ export default function Dashboard() {
                   <Clock className="w-4 h-4 text-purple-400" />
                   Task Queue
                 </h3>
-                <button className="text-white/50 hover:text-white text-sm flex items-center gap-1">
+                <button 
+                  onClick={() => setActiveTab("tasks")}
+                  className="text-white/50 hover:text-white text-sm flex items-center gap-1"
+                >
                   View All <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
-              <div className="space-y-4">
-                {mockTasks.map((task) => (
-                  <div key={task.id} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        {task.type === "code" && <Terminal className="w-4 h-4 text-emerald-400" />}
-                        {task.type === "research" && <Globe className="w-4 h-4 text-sky-400" />}
-                        {task.type === "email" && <Mail className="w-4 h-4 text-rose-400" />}
-                        {task.type === "calendar" && <Calendar className="w-4 h-4 text-purple-400" />}
-                        <span className="text-white font-medium">{task.name}</span>
+              
+              {tasksLoading ? (
+                <LoadingState />
+              ) : (
+                <div className="space-y-4">
+                  {tasks.map((task) => (
+                    <div key={task.id} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {task.type === "code" && <Terminal className="w-4 h-4 text-emerald-400" />}
+                          {task.type === "research" && <Globe className="w-4 h-4 text-sky-400" />}
+                          {task.type === "email" && <Mail className="w-4 h-4 text-rose-400" />}
+                          {task.type === "calendar" && <Calendar className="w-4 h-4 text-purple-400" />}
+                          <span className="text-white font-medium">{task.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={task.status} />
+                          {task.status === "running" && (
+                            <button 
+                              onClick={() => cancelTask(task.id)}
+                              className="p-1 hover:bg-rose-500/20 rounded transition-colors"
+                            >
+                              <Square className="w-4 h-4 text-rose-400" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <StatusBadge status={task.status} />
+                      <ProgressBar progress={task.progress} />
                     </div>
-                    <ProgressBar progress={task.progress} />
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </GlassCard>
           </div>
 
@@ -333,30 +386,37 @@ export default function Dashboard() {
                   Channels
                 </h3>
                 <span className="text-white/50 text-sm">
-                  {mockChannels.reduce((acc, c) => acc + c.unread, 0)} unread
+                  {channels.reduce((acc, c) => acc + c.unreadCount, 0)} unread
                 </span>
               </div>
-              <div className="space-y-3">
-                {mockChannels.map((channel) => (
-                  <div
-                    key={channel.id}
-                    className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <ChannelIcon type={channel.type} />
-                      <div>
-                        <p className="font-medium text-white text-sm">{channel.name}</p>
-                        <p className="text-white/40 text-xs">{channel.lastMessage}</p>
+              
+              {channelsLoading ? (
+                <LoadingState />
+              ) : (
+                <div className="space-y-3">
+                  {channels.map((channel) => (
+                    <div
+                      key={channel.id}
+                      className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <ChannelIcon type={channel.type} />
+                        <div>
+                          <p className="font-medium text-white text-sm">{channel.name}</p>
+                          <p className="text-white/40 text-xs">
+                            {channel.enabled ? "Connected" : "Disabled"}
+                          </p>
+                        </div>
                       </div>
+                      {channel.unreadCount > 0 && (
+                        <span className="w-5 h-5 rounded-full bg-rose-500 text-white text-xs flex items-center justify-center font-medium">
+                          {channel.unreadCount}
+                        </span>
+                      )}
                     </div>
-                    {channel.unread > 0 && (
-                      <span className="w-5 h-5 rounded-full bg-rose-500 text-white text-xs flex items-center justify-center font-medium">
-                        {channel.unread}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </GlassCard>
           </div>
 
@@ -371,7 +431,13 @@ export default function Dashboard() {
               </div>
               <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={mockMetrics}>
+                  <AreaChart data={metrics}>
+                    <defs>
+                      <linearGradient id="colorRequests" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#007AFF" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#007AFF" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
                     <XAxis dataKey="time" stroke="rgba(255,255,255,0.3)" fontSize={10} />
                     <YAxis stroke="rgba(255,255,255,0.3)" fontSize={10} />
                     <Tooltip
@@ -382,14 +448,15 @@ export default function Dashboard() {
                       }}
                       labelStyle={{ color: "white" }}
                     />
-                    <Line
+                    <Area
                       type="monotone"
                       dataKey="requests"
                       stroke="#007AFF"
                       strokeWidth={2}
-                      dot={false}
+                      fillOpacity={1}
+                      fill="url(#colorRequests)"
                     />
-                  </LineChart>
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
             </GlassCard>
@@ -405,14 +472,28 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <p className="font-medium text-white">Connected Services</p>
-                    <p className="text-white/50 text-sm">8 services active</p>
+                    <p className="text-white/50 text-sm">
+                      {status?.services.filter(s => s.status === "connected").length || 0} services active
+                    </p>
                   </div>
                 </div>
                 <div className="h-8 w-px bg-white/10" />
                 <div className="flex items-center gap-4">
-                  {["Discord", "Telegram", "Gmail", "GitHub", "Calendar"].map((service) => (
-                    <span key={service} className="px-3 py-1.5 rounded-lg glass-subtle text-sm text-white/70">
-                      {service}
+                  {status?.services.map((service) => (
+                    <span 
+                      key={service.name} 
+                      className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 ${
+                        service.status === "connected" 
+                          ? "glass-subtle text-white/70" 
+                          : "bg-rose-500/20 text-rose-400"
+                      }`}
+                    >
+                      {service.status === "connected" ? (
+                        <CheckCircle2 className="w-3 h-3" />
+                      ) : (
+                        <AlertCircle className="w-3 h-3" />
+                      )}
+                      {service.name}
                     </span>
                   ))}
                 </div>
@@ -429,8 +510,40 @@ export default function Dashboard() {
       {/* Sessions Tab */}
       {activeTab === "sessions" && (
         <div className="glass rounded-2xl p-6">
-          <h2 className="text-xl font-bold mb-6">Active Sessions</h2>
-          <p className="text-white/50">Session management interface coming soon...</p>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold">Active Sessions</h2>
+            <button className="px-4 py-2 rounded-lg liquid-gradient text-white font-medium text-sm">
+              <Plus className="w-4 h-4 inline mr-2" />
+              New Session
+            </button>
+          </div>
+          {sessionsLoading ? (
+            <LoadingState />
+          ) : (
+            <div className="space-y-4">
+              {sessions.map((session) => (
+                <div key={session.id} className="glass-subtle rounded-xl p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                        <Bot className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-white">{session.label}</h3>
+                        <p className="text-white/50 text-sm">{session.key}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <StatusBadge status={session.status} />
+                      <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                        <Settings className="w-5 h-5 text-white/50" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -438,15 +551,87 @@ export default function Dashboard() {
       {activeTab === "tasks" && (
         <div className="glass rounded-2xl p-6">
           <h2 className="text-xl font-bold mb-6">Task Queue</h2>
-          <p className="text-white/50">Advanced task management coming soon...</p>
+          {tasksLoading ? (
+            <LoadingState />
+          ) : (
+            <div className="space-y-4">
+              {tasks.map((task) => (
+                <div key={task.id} className="glass-subtle rounded-xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      {task.type === "code" && <Terminal className="w-5 h-5 text-emerald-400" />}
+                      {task.type === "research" && <Globe className="w-5 h-5 text-sky-400" />}
+                      {task.type === "email" && <Mail className="w-5 h-5 text-rose-400" />}
+                      {task.type === "calendar" && <Calendar className="w-5 h-5 text-purple-400" />}
+                      <h3 className="font-semibold text-white">{task.name}</h3>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={task.status} />
+                      {task.status === "running" && (
+                        <button 
+                          onClick={() => cancelTask(task.id)}
+                          className="p-2 hover:bg-rose-500/20 rounded-lg transition-colors"
+                        >
+                          <Square className="w-4 h-4 text-rose-400" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <ProgressBar progress={task.progress} />
+                  {task.description && (
+                    <p className="text-white/50 text-sm mt-3">{task.description}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* Channels Tab */}
       {activeTab === "channels" && (
         <div className="glass rounded-2xl p-6">
-          <h2 className="text-xl font-bold mb-6">Connected Channels</h2>
-          <p className="text-white/50">Channel configuration coming soon...</p>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold">Connected Channels</h2>
+            <button className="px-4 py-2 rounded-lg liquid-gradient text-white font-medium text-sm">
+              <Plus className="w-4 h-4 inline mr-2" />
+              Add Channel
+            </button>
+          </div>
+          {channelsLoading ? (
+            <LoadingState />
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              {channels.map((channel) => (
+                <div key={channel.id} className="glass-subtle rounded-xl p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <ChannelIcon type={channel.type} />
+                      <div>
+                        <h3 className="font-semibold text-white">{channel.name}</h3>
+                        <p className="text-white/50 text-sm">
+                          {channel.unreadCount} unread messages
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className={`w-12 h-6 rounded-full transition-colors ${
+                          channel.enabled ? "bg-emerald-500" : "bg-white/20"
+                        }`}
+                      >
+                        <div
+                          className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                            channel.enabled ? "translate-x-6" : "translate-x-0.5"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -454,8 +639,115 @@ export default function Dashboard() {
       {activeTab === "settings" && (
         <div className="glass rounded-2xl p-6">
           <h2 className="text-xl font-bold mb-6">Settings</h2>
-          <p className="text-white/50">Configuration panel coming soon...</p>
+          <div className="space-y-6">
+            <div className="glass-subtle rounded-xl p-6">
+              <h3 className="font-semibold text-white mb-4">Gateway Configuration</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-white/50 text-sm">Gateway URL</label>
+                  <input 
+                    type="text" 
+                    value="http://127.0.0.1:18789"
+                    className="w-full mt-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                    readOnly
+                  />
+                </div>
+                <div>
+                  <label className="text-white/50 text-sm">API Token</label>
+                  <input 
+                    type="password" 
+                    value="••••••••"
+                    className="w-full mt-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                    readOnly
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <div className="glass-subtle rounded-xl p-6">
+              <h3 className="font-semibold text-white mb-4">Preferences</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-white">Auto-refresh data</span>
+                  <button className="w-12 h-6 rounded-full bg-emerald-500">
+                    <div className="w-5 h-5 rounded-full bg-white translate-x-6" />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white">Desktop notifications</span>
+                  <button className="w-12 h-6 rounded-full bg-emerald-500">
+                    <div className="w-5 h-5 rounded-full bg-white translate-x-6" />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white">Dark mode</span>
+                  <button className="w-12 h-6 rounded-full bg-emerald-500">
+                    <div className="w-5 h-5 rounded-full bg-white translate-x-6" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
+      )}
+
+      {/* Session Detail Modal */}
+      {selectedSession && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-6"
+          onClick={() => setSelectedSession(null)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="glass-strong rounded-2xl p-6 max-w-lg w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold">Session Details</h3>
+              <button 
+                onClick={() => setSelectedSession(null)}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-white/50 text-sm">Name</label>
+                <p className="text-white font-medium">{selectedSession.label}</p>
+              </div>
+              <div>
+                <label className="text-white/50 text-sm">Session Key</label>
+                <p className="text-white font-mono text-sm">{selectedSession.key}</p>
+              </div>
+              <div>
+                <label className="text-white/50 text-sm">Status</label>
+                <div className="mt-1">
+                  <StatusBadge status={selectedSession.status} />
+                </div>
+              </div>
+              <div>
+                <label className="text-white/50 text-sm">Messages</label>
+                <p className="text-white">{selectedSession.messageCount}</p>
+              </div>
+              <div>
+                <label className="text-white/50 text-sm">Created</label>
+                <p className="text-white">{new Date(selectedSession.createdAt).toLocaleString()}</p>
+              </div>
+            </div>
+            <div className="mt-6 flex gap-3">
+              <button className="flex-1 px-4 py-2 rounded-lg liquid-gradient text-white font-medium">
+                Open Session
+              </button>
+              <button className="px-4 py-2 rounded-lg glass-subtle text-white font-medium">
+                <Settings className="w-5 h-5" />
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
       )}
     </div>
   );
