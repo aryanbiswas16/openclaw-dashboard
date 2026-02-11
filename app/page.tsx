@@ -130,7 +130,7 @@ function LoadingState() {
 }
 
 export default function Dashboard() {
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
 
@@ -141,8 +141,12 @@ export default function Dashboard() {
   const { channels, loading: channelsLoading } = useChannels();
   const formatDuration = useDuration();
 
-  // Update clock
-  setInterval(() => setCurrentTime(new Date()), 1000);
+  // Update clock - only on client
+  useEffect(() => {
+    setCurrentTime(new Date());
+    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const metrics = [
     { time: "00:00", requests: 12, latency: 150 },
@@ -172,10 +176,10 @@ export default function Dashboard() {
           <div className="flex items-center gap-6">
             <div className="text-right">
               <p className="text-2xl font-mono font-bold">
-                {currentTime.toLocaleTimeString("en-US", { hour12: false })}
+                {currentTime ? currentTime.toLocaleTimeString("en-US", { hour12: false }) : "--:--:--"}
               </p>
               <p className="text-white/50 text-sm">
-                {currentTime.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+                {currentTime ? currentTime.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }) : "Loading..."}
               </p>
             </div>
             <div className="w-10 h-10 rounded-full glass flex items-center justify-center cursor-pointer hover:bg-white/10 transition-colors">
