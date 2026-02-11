@@ -187,16 +187,16 @@ export function useRelativeTime(date: string | Date) {
 }
 
 // Format duration
-export function useDuration(seconds: number) {
-  const format = useCallback((secs: number) => {
-    const days = Math.floor(secs / 86400);
-    const hours = Math.floor((secs % 86400) / 3600);
-    const mins = Math.floor((secs % 3600) / 60);
+export function useDuration() {
+  const format = useCallback((seconds: number) => {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
     
     if (days > 0) return `${days}d ${hours}h ${mins}m`;
     if (hours > 0) return `${hours}h ${mins}m`;
     return `${mins}m`;
   }, []);
 
-  return format(seconds);
+  return format;
 }

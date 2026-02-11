@@ -18,7 +18,7 @@ export interface Task {
   sessionId: string;
   name: string;
   description?: string;
-  status: "pending" | "running" | "completed" | "failed" | "cancelled";
+  status: "pending" | "running" | "completed" | "failed" | "cancelled" | "queued";
   progress: number;
   type: string;
   createdAt: string;
