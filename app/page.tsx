@@ -24,6 +24,7 @@ import {
   AlertCircle,
   CheckCircle2,
   X,
+  FileText,
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
 import { 
@@ -201,7 +202,7 @@ export default function Dashboard() {
       {/* Navigation Tabs */}
       <nav className="mb-6">
         <div className="glass rounded-2xl p-2 flex gap-2 w-fit">
-          {["overview", "sessions", "tasks", "channels", "settings"].map((tab) => (
+          {["overview", "daily", "sessions", "tasks", "channels", "settings"].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -713,6 +714,175 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Daily Tab - Todo & Focus Management */}
+      {activeTab === "daily" && (
+        <div className="grid grid-cols-12 gap-6">
+          {/* Today's Focus */}
+          <div className="col-span-12 lg:col-span-4">
+            <GlassCard>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-white/80 flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-amber-400" />
+                  Today's Focus
+                </h3>
+                <span className="text-white/50 text-sm">{new Date().toLocaleDateString()}</span>
+              </div>
+              <div className="space-y-3">
+                <div className="p-4 glass-subtle rounded-xl">
+                  <p className="text-white/70 text-sm mb-2">Primary Goal</p>
+                  <p className="text-white font-medium">Complete OpenClaw Dashboard</p>
+                </div>
+                <div className="p-4 glass-subtle rounded-xl">
+                  <p className="text-white/70 text-sm mb-2">Secondary</p>
+                  <p className="text-white font-medium">Review professor cold emails</p>
+                </div>
+                <button 
+                  onClick={() => window.open("https://calendar.google.com", "_blank")}
+                  className="w-full py-3 rounded-xl liquid-gradient text-white font-medium text-sm"
+                >
+                  <Calendar className="w-4 h-4 inline mr-2" />
+                  View Calendar
+                </button>
+              </div>
+            </GlassCard>
+          </div>
+
+          {/* Quick Todo Creator */}
+          <div className="col-span-12 lg:col-span-4">
+            <GlassCard>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-white/80 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  Quick Add Todo
+                </h3>
+              </div>
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  placeholder="What needs to be done?"
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:border-white/30"
+                />
+                <div className="flex gap-2">
+                  <button className="flex-1 py-2 rounded-lg glass-subtle text-white/70 text-sm hover:bg-white/10">
+                    High
+                  </button>
+                  <button className="flex-1 py-2 rounded-lg glass-subtle text-white/70 text-sm hover:bg-white/10">
+                    Medium
+                  </button>
+                  <button className="flex-1 py-2 rounded-lg glass-subtle text-white/70 text-sm hover:bg-white/10">
+                    Low
+                  </button>
+                </div>
+                <button className="w-full py-3 rounded-xl bg-emerald-500/20 text-emerald-400 font-medium text-sm border border-emerald-500/30 hover:bg-emerald-500/30">
+                  <Plus className="w-4 h-4 inline mr-2" />
+                  Add to MEMORY.md
+                </button>
+              </div>
+            </GlassCard>
+          </div>
+
+          {/* Active Todos */}
+          <div className="col-span-12 lg:col-span-4">
+            <GlassCard>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-white/80 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-blue-400" />
+                  Active Todos
+                </h3>
+                <span className="text-white/50 text-sm">3 pending</span>
+              </div>
+              <div className="space-y-2">
+                {[
+                  { text: "Complete dashboard UI", done: true, priority: "high" },
+                  { text: "Send cold emails to professors", done: false, priority: "high" },
+                  { text: "Review GitHub notifications", done: false, priority: "medium" },
+                  { text: "Update MEMORY.md", done: false, priority: "low" },
+                ].map((todo, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 glass-subtle rounded-xl">
+                    <button className={`w-5 h-5 rounded border ${todo.done ? 'bg-emerald-500 border-emerald-500' : 'border-white/30'} flex items-center justify-center`}>
+                      {todo.done && <CheckCircle2 className="w-3 h-3 text-white" />}
+                    </button>
+                    <span className={`flex-1 text-sm ${todo.done ? 'text-white/50 line-through' : 'text-white'}`}>
+                      {todo.text}
+                    </span>
+                    <span className={`w-2 h-2 rounded-full ${
+                      todo.priority === 'high' ? 'bg-rose-500' : todo.priority === 'medium' ? 'bg-amber-500' : 'bg-blue-500'
+                    }`} />
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          </div>
+
+          {/* Workspace Files */}
+          <div className="col-span-12 lg:col-span-6">
+            <GlassCard>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-white/80 flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-purple-400" />
+                  Workspace Files
+                </h3>
+              </div>
+              <div className="space-y-2">
+                {[
+                  { name: "MEMORY.md", type: "doc", path: "~/.openclaw/workspace/" },
+                  { name: "AGENTS.md", type: "doc", path: "~/.openclaw/workspace/" },
+                  { name: "USER.md", type: "doc", path: "~/.openclaw/workspace/" },
+                  { name: "SOUL.md", type: "doc", path: "~/.openclaw/workspace/" },
+                  { name: "TOOLS.md", type: "doc", path: "~/.openclaw/workspace/" },
+                  { name: "HEARTBEAT.md", type: "doc", path: "~/.openclaw/workspace/" },
+                ].map((file, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 glass-subtle rounded-xl hover:bg-white/5 transition-colors cursor-pointer">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                      <span className="text-blue-400 text-xs font-bold">MD</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-white text-sm font-medium">{file.name}</p>
+                      <p className="text-white/40 text-xs">{file.path}</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-white/30" />
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          </div>
+
+          {/* Quick Commands */}
+          <div className="col-span-12 lg:col-span-6">
+            <GlassCard>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-white/80 flex items-center gap-2">
+                  <Terminal className="w-4 h-4 text-emerald-400" />
+                  Quick Commands
+                </h3>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: "OpenClaw Status", cmd: "openclaw status" },
+                  { label: "View Logs", cmd: "openclaw logs --follow" },
+                  { label: "Security Audit", cmd: "openclaw security audit" },
+                  { label: "Update Check", cmd: "openclaw update check" },
+                  { label: "Restart Gateway", cmd: "openclaw gateway restart" },
+                  { label: "Session List", cmd: "openclaw sessions list" },
+                ].map((cmd, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      navigator.clipboard.writeText(cmd.cmd);
+                      alert(`Copied: ${cmd.cmd}`);
+                    }}
+                    className="p-4 glass-subtle rounded-xl text-left hover:bg-white/10 transition-colors"
+                  >
+                    <p className="text-white text-sm font-medium">{cmd.label}</p>
+                    <p className="text-white/40 text-xs font-mono mt-1">{cmd.cmd}</p>
+                  </button>
+                ))}
+              </div>
+            </GlassCard>
           </div>
         </div>
       )}
